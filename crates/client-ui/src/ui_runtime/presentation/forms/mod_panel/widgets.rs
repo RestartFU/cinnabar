@@ -198,7 +198,7 @@ pub(super) fn row(control: &Control, index: usize, width: f64, y: f64, palette: 
             let mut value = label(
                 &label_key,
                 [width - 10.0, 18.0],
-                [5.0, 3.0],
+                [5.0, 6.0],
                 palette.text,
                 true,
             );

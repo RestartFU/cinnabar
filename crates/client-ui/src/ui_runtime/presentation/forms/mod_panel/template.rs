@@ -136,7 +136,7 @@ fn navigation(panel: &Panel, layout: &Layout<'_>, category: usize, palette: Pale
         label(
             &panel.title,
             [title_width, 18.0],
-            [13.0, 10.0],
+            [13.0, 13.0],
             palette.text,
             false,
         ),
@@ -154,7 +154,7 @@ fn navigation(panel: &Panel, layout: &Layout<'_>, category: usize, palette: Pale
         let mut text = label(
             name,
             [tab_width - 2.0, 18.0],
-            [0.0, 6.0],
+            [0.0, 9.0],
             if index == category {
                 palette.text
             } else {
@@ -174,7 +174,7 @@ fn navigation(panel: &Panel, layout: &Layout<'_>, category: usize, palette: Pale
             ),
         ));
     }
-    let mut close = label("×", [20.0, 22.0], [0.0, 1.0], palette.muted, false);
+    let mut close = label("×", [20.0, 22.0], [0.0, 7.0], palette.muted, false);
     close["text_alignment"] = json!("center");
     contents.push(named(
         "close",
