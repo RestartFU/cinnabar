@@ -133,8 +133,8 @@ fn rasterize_at(bytes: &[u8], raster_scale: u32) -> Result<RuntimeFontCatalog, S
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use super::*;
+    use std::sync::Arc;
 
     #[test]
     fn invalid_and_oversized_optional_fonts_fail_before_attachment() {
