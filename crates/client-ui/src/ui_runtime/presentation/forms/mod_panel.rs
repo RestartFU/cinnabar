@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use json_ui::{Catalog, Context, DataSource, ViewState};
 use ui::{
-    UiNode,
+    UiNode, UiScale,
     mod_panel::{Control, Event, Panel},
 };
 
@@ -25,8 +25,8 @@ use crate::ui_runtime::{UiRuntime, forms::EngineFrame};
 use data::control_data;
 
 const SCREEN: &str = "cinnabar_personal.panel";
-const ROW_HEIGHT: f64 = 34.0;
-const CHROME_HEIGHT: f64 = 100.0;
+const ROW_HEIGHT: f64 = 26.0;
+const CHROME_HEIGHT: f64 = 88.0;
 
 pub(super) struct ModPanel {
     panel: Panel,
@@ -141,7 +141,7 @@ impl UiPresentationRuntime {
         runtime: &UiRuntime,
         nodes: &mut Vec<UiNode>,
         next: &mut u32,
-        metrics: TextMetrics,
+        mut metrics: TextMetrics,
         content: [f32; 2],
     ) {
         let Some(panel) = self
@@ -156,6 +156,8 @@ impl UiPresentationRuntime {
             panel.open = false;
             return;
         };
+        // Desktop controls retain logical sizing; the render tree applies platform DPI.
+        metrics.scale = UiScale::new_display(1.0).expect("unit display scale is valid");
         let px = metrics.scale.get() * FONT_DESIGN_PIXEL_TEXELS as f32;
         let viewport = [f64::from(content[0] / px), f64::from(content[1] / px)];
         if viewport[0] < 120.0

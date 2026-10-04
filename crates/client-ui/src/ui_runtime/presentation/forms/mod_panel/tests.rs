@@ -440,3 +440,33 @@ fn oversized_group_pages_keep_every_control_reachable_and_inside_the_viewport() 
     }
     assert_eq!(seen.len(), 24);
 }
+
+#[test]
+fn desktop_panel_geometry_stays_stable_across_game_gui_preferences_and_dpi() {
+    let mut presentation = mini_engine_presentation();
+    presentation.set_mod_panel(Some(&panel())).unwrap();
+    presentation.set_mod_panel_open(true);
+    presentation.set_gui_scale_preference(Some(2));
+    frame(&mut presentation, [1280, 720]);
+    let expected = point(&presentation, "mod.control:1", 0.5);
+    for preference in [1, 3, 4] {
+        presentation.set_gui_scale_preference(Some(preference));
+        frame(&mut presentation, [1280, 720]);
+        assert_eq!(point(&presentation, "mod.control:1", 0.5), expected);
+    }
+    presentation
+        .build(
+            &player_state::PlayerState::new(1),
+            &UiRuntime::new(1),
+            0,
+            [1600, 900],
+            DpiScale::new(1.25).unwrap(),
+        )
+        .unwrap();
+    assert_eq!(point(&presentation, "mod.control:1", 0.5), expected);
+    assert!(
+        !presentation
+            .mod_panel_events(expected, true, true)
+            .is_empty()
+    );
+}

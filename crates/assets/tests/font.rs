@@ -192,12 +192,16 @@ fn attached_named_font_keeps_default_metrics_and_rebases_private_pages() {
     };
     let private_bytes =
         encode_font_catalog(SOURCE_MANIFEST_SHA256, &[glyph], &[private_page]).unwrap();
-    let private = RuntimeFontCatalog::decode(&private_bytes, SOURCE_MANIFEST_SHA256).unwrap();
+    let private = RuntimeFontCatalog::decode(&private_bytes, SOURCE_MANIFEST_SHA256)
+        .unwrap()
+        .with_linear_sampling();
     let combined = base.with_named_font("private_controls", &private).unwrap();
     assert_eq!(combined.glyphs(), base.glyphs());
     assert_eq!(combined.pages()[0], base.pages()[0]);
     assert_eq!(combined.pages().len(), 2);
     let alias = combined.font_named("private_controls");
+    assert!(!combined.linear_sampling());
+    assert!(alias.linear_sampling());
     assert_eq!(alias.glyph('A').unwrap().page, 1);
     assert_eq!(alias.glyph('A').unwrap().advance_64, 192);
     assert_eq!(combined.pages()[1].rgba8[3], 128);

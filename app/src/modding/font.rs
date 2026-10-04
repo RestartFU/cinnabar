@@ -7,8 +7,9 @@ use sha2::{Digest, Sha256};
 
 const FONT_ENV: &str = "CINNABAR_MOD_FONT";
 const MAX_SOURCE_BYTES: usize = 2 * 1024 * 1024;
-const ATLAS_SIDE: u32 = 256;
+const ATLAS_SIDE: u32 = 512;
 const FONT_EM: f32 = 18.0;
+const RASTER_SCALE: u32 = 2;
 
 /// Reads and rasterizes once before UI texture ownership is initialized.
 pub(crate) fn with_optional_font(base: Arc<RuntimeFontCatalog>) -> Arc<RuntimeFontCatalog> {
@@ -45,6 +46,10 @@ fn load(path: &Path) -> Result<RuntimeFontCatalog, String> {
 }
 
 fn rasterize(bytes: &[u8]) -> Result<RuntimeFontCatalog, String> {
+    rasterize_at(bytes, RASTER_SCALE)
+}
+
+fn rasterize_at(bytes: &[u8], raster_scale: u32) -> Result<RuntimeFontCatalog, String> {
     let font = fontdue::Font::from_bytes(bytes, fontdue::FontSettings::default())
         .map_err(str::to_owned)?;
     let mut cells = Vec::new();
@@ -61,25 +66,46 @@ fn rasterize(bytes: &[u8]) -> Result<RuntimeFontCatalog, String> {
         if metrics.width > 64 || metrics.height > 64 || !metrics.advance_width.is_finite() {
             return Err("font glyph dimensions exceed local bounds".into());
         }
-        let (metrics, alpha) = font.rasterize(source, FONT_EM);
         // Empty glyphs keep their advance and get a transparent texel with valid carrier UVs.
         let empty = metrics.width == 0 || metrics.height == 0;
-        let size = if empty {
+        let logical_size = if empty {
             [1, 1]
         } else {
             [metrics.width as u32, metrics.height as u32]
         };
+        let size = if empty {
+            [1, 1]
+        } else {
+            logical_size.map(|size| size * raster_scale)
+        };
+        let mut rgba8 = vec![255; size[0] as usize * size[1] as usize * 4];
+        for pixel in rgba8.chunks_exact_mut(4) {
+            pixel[3] = 0;
+        }
+        if !empty {
+            let (dense, alpha) = font.rasterize(source, FONT_EM * raster_scale as f32);
+            let left = dense.xmin - metrics.xmin * raster_scale as i32;
+            let top = (metrics.ymin + metrics.height as i32) * raster_scale as i32
+                - (dense.ymin + dense.height as i32);
+            if left < 0
+                || top < 0
+                || left as usize + dense.width > size[0] as usize
+                || top as usize + dense.height > size[1] as usize
+            {
+                return Err("font raster exceeds logical glyph bounds".into());
+            }
+            for y in 0..dense.height {
+                for x in 0..dense.width {
+                    let target =
+                        (((top as usize + y) * size[0] as usize + left as usize + x) * 4) + 3;
+                    rgba8[target] = alpha[y * dense.width + x];
+                }
+            }
+        }
         cells.push(CellGlyph {
             codepoint,
             size,
-            rgba8: if empty {
-                vec![255, 255, 255, 0].into()
-            } else {
-                alpha
-                    .into_iter()
-                    .flat_map(|alpha| [255, 255, 255, alpha])
-                    .collect()
-            },
+            rgba8: rgba8.into(),
             bearing: [
                 metrics.xmin as i16,
                 -(metrics.ymin + metrics.height as i32) as i16,
@@ -87,7 +113,7 @@ fn rasterize(bytes: &[u8]) -> Result<RuntimeFontCatalog, String> {
             advance_64: (metrics.advance_width * 64.0)
                 .round()
                 .clamp(0.0, i16::MAX as f32) as i16,
-            draw_size_64: size.map(|value| value * 64),
+            draw_size_64: logical_size.map(|value| value * 64),
         });
     }
     let atlas = pack_cells(&cells, 0, ATLAS_SIDE, 1);
@@ -110,12 +136,17 @@ fn rasterize(bytes: &[u8]) -> Result<RuntimeFontCatalog, String> {
         .collect::<Vec<_>>();
     let glyphs = atlas
         .glyphs
-        .into_iter()
+        .iter()
         .map(|glyph| glyph.metrics)
         .collect::<Vec<_>>();
     let encoded =
         encode_font_catalog(source_hash, &glyphs, &pages).map_err(|error| error.to_string())?;
-    RuntimeFontCatalog::decode(&encoded, source_hash).map_err(|error| error.to_string())
+    RuntimeFontCatalog::decode(&encoded, source_hash)
+        .map(|font| {
+            font.with_glyphs(&atlas.glyphs, |_| true)
+                .with_linear_sampling()
+        })
+        .map_err(|error| error.to_string())
 }
 
 #[cfg(test)]
@@ -147,6 +178,7 @@ mod tests {
             return;
         };
         let font = load(Path::new(&path)).unwrap();
+        assert!(font.linear_sampling());
         assert_eq!(font.pages().len(), 1);
         assert_eq!(
             [font.pages()[0].width, font.pages()[0].height],
@@ -179,5 +211,54 @@ mod tests {
                 .chunks_exact(4)
                 .any(|pixel| (1..255).contains(&pixel[3]))
         );
+    }
+
+    #[test]
+    fn supplied_font_density_changes_raster_without_changing_logical_layout() {
+        let Some(path) = std::env::var_os(FONT_ENV) else {
+            eprintln!(
+                "skipping supplied_font_density_changes_raster_without_changing_logical_layout: fixture unavailable; set CINNABAR_MOD_FONT to a local outline font"
+            );
+            return;
+        };
+        let bytes = std::fs::read(path).unwrap();
+        let native = rasterize_at(&bytes, 1).unwrap();
+        let dense = rasterize_at(&bytes, RASTER_SCALE).unwrap();
+        for codepoint in "Ag1 Cinnaroids".chars() {
+            let native_glyph = native.glyph(codepoint).unwrap();
+            let dense_glyph = dense.glyph(codepoint).unwrap();
+            assert_eq!(native_glyph.bearing, dense_glyph.bearing);
+            assert_eq!(native_glyph.advance_64, dense_glyph.advance_64);
+            assert_eq!(
+                native.draw_size_64(codepoint),
+                dense.draw_size_64(codepoint)
+            );
+            if codepoint != ' ' {
+                assert_eq!(
+                    dense_glyph.uv[2] - dense_glyph.uv[0],
+                    (native_glyph.uv[2] - native_glyph.uv[0]) * RASTER_SCALE as u16
+                );
+            }
+        }
+        let mut cache = ui::TextLayoutCache::new(8, 64 * 1024);
+        for scale in [1.0, 1.5, 2.0] {
+            let request = |font| ui::TextLayoutRequest {
+                text: "Ag1 Cinnaroids",
+                style: ui::TextStyle::default(),
+                width_64: 400 * 64,
+                line_height_64: ui::TEXT_LINE_HEIGHT_64,
+                baseline_64: ui::TEXT_BASELINE_64,
+                scale: ui::UiScale::new_display(scale).unwrap(),
+                font,
+                wrap: Default::default(),
+            };
+            let native_layout = cache.layout(request(&native)).unwrap();
+            let dense_layout = cache.layout(request(&dense)).unwrap();
+            assert_eq!(native_layout.size_64(), dense_layout.size_64());
+            for (native, dense) in native_layout.glyphs().iter().zip(dense_layout.glyphs()) {
+                assert_eq!(native.bounds_64, dense.bounds_64);
+            }
+            assert!(!Arc::ptr_eq(&native_layout, &dense_layout));
+        }
     }
 }

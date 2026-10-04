@@ -2,11 +2,12 @@ use ui::mod_panel::Panel;
 
 use super::widgets::row_height;
 
-pub(super) const NAV_HEIGHT: f64 = 34.0;
-pub(super) const GAP: f64 = 10.0;
+pub(super) const NAV_HEIGHT: f64 = 28.0;
+pub(super) const GAP: f64 = 8.0;
+pub(super) const CARD_HEADER: f64 = 30.0;
 
 pub(super) fn top_offset(viewport: [f64; 2]) -> f64 {
-    (viewport[1] * 0.14).clamp(12.0, 64.0)
+    (viewport[1] * 0.14).round().clamp(12.0, 64.0)
 }
 
 pub(super) struct Card<'a> {
@@ -26,7 +27,7 @@ pub(super) struct Layout<'a> {
 
 impl<'a> Layout<'a> {
     pub fn new(panel: &'a Panel, viewport: [f64; 2], category: usize, rows: usize) -> Self {
-        let width = (viewport[0] - 24.0).min(420.0);
+        let width = (viewport[0] - 24.0).min(344.0).floor();
         let mut categories = Vec::new();
         for section in &panel.sections {
             if !categories.contains(&section.category.as_str()) {
@@ -48,7 +49,7 @@ impl<'a> Layout<'a> {
                     .expect("validated section reference")
             };
             let controls: Vec<_> = section.controls.iter().map(|id| find(id)).collect();
-            let height = 34.0
+            let height = CARD_HEADER
                 + controls
                     .iter()
                     .map(|index| row_height(&panel.controls[*index]))
@@ -79,7 +80,7 @@ impl<'a> Layout<'a> {
                         label: selected.unwrap_or("Controls"),
                         toggle: None,
                         controls: controls.to_vec(),
-                        height: 34.0 + controls.len() as f64 * 34.0,
+                        height: CARD_HEADER + controls.len() as f64 * 26.0,
                         offset: [0.0, NAV_HEIGHT + GAP],
                     }]
                 })
@@ -89,7 +90,7 @@ impl<'a> Layout<'a> {
                     label: "Controls",
                     toggle: None,
                     controls: Vec::new(),
-                    height: 34.0,
+                    height: CARD_HEADER,
                     offset: [0.0, NAV_HEIGHT + GAP],
                 }]);
             }
@@ -142,6 +143,7 @@ fn append_row<'a>(
         *y = NAV_HEIGHT + GAP;
     }
     for (column, mut card) in row.drain(..).enumerate() {
+        card.height = height;
         card.offset = [column as f64 * (width + GAP), *y];
         pages.last_mut().unwrap().push(card);
     }

@@ -53,6 +53,7 @@ pub struct CompiledFontCatalog {
     /// Drawn size in 1/64 px for glyphs that are not drawn at their texel size.
     draw_sizes_64: Arc<BTreeMap<char, [u32; 2]>>,
     named: Arc<BTreeMap<String, Self>>,
+    linear_sampling: bool,
 }
 
 pub type RuntimeFontCatalog = CompiledFontCatalog;
@@ -83,6 +84,7 @@ impl CompiledFontCatalog {
             pages: pages.into(),
             draw_sizes_64: Arc::default(),
             named: Arc::default(),
+            linear_sampling: false,
         })
     }
 
@@ -126,7 +128,24 @@ impl CompiledFontCatalog {
             pages: Arc::clone(&self.pages),
             draw_sizes_64: Arc::new(draw_sizes_64),
             named: Arc::clone(&self.named),
+            linear_sampling: self.linear_sampling,
         }
+    }
+
+    /// Selects filtered sampling for a runtime outline raster; decoded carriers remain nearest.
+    pub fn with_linear_sampling(mut self) -> Self {
+        if !self.linear_sampling {
+            let mut hash = Sha256::new();
+            hash.update(self.identity.carrier_sha256);
+            hash.update(b"linear outline sampling");
+            self.identity.carrier_sha256 = hash.finalize().into();
+            self.linear_sampling = true;
+        }
+        self
+    }
+
+    pub const fn linear_sampling(&self) -> bool {
+        self.linear_sampling
     }
 
     /// Adds runtime font aliases without changing the pinned carrier format.

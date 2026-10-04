@@ -186,7 +186,8 @@ atomic disk writes, reports failures separately, and flushes the last value on e
 
 With an explicit component and controls grant, `CINNABAR_MOD_FONT` may select a
 bounded local outline font for the personal panel. It is rasterized once at startup
-into a private atlas alias; vanilla and server glyph ownership are preserved.
+into a private atlas alias with filtered sampling. Panel sizing follows display DPI
+independently of the game GUI scale; vanilla and server glyph ownership are preserved.
 
 ## Verification and limits
 

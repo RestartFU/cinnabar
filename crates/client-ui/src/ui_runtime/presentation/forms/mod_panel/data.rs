@@ -40,7 +40,7 @@ pub(super) fn control_data(panel: &Panel) -> DataSource {
                 );
                 data.set_global(
                     format!("#row_{index}_knob_offset"),
-                    Scalar::Json(json!([if *value { 15.0 } else { 2.0 }, 2.0])),
+                    Scalar::Json(json!([if *value { 12.0 } else { 2.0 }, 2.0])),
                 );
             }
             _ => {}

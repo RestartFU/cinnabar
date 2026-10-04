@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 use ui::mod_panel::{Control, Panel};
 
 use super::{
-    layout::{Layout, NAV_HEIGHT},
+    layout::{CARD_HEADER, Layout, NAV_HEIGHT},
     widgets::*,
 };
 
@@ -65,36 +65,36 @@ pub(super) fn catalog(
     for (card_index, card) in layout.pages[page].iter().enumerate() {
         let card_width = layout.card_width;
         let mut contents = chrome([card_width, card.height], palette, 8.0);
-        let title_width = card_width - if card.toggle.is_some() { 52.0 } else { 20.0 };
+        let title_width = card_width - if card.toggle.is_some() { 42.0 } else { 16.0 };
         contents.push(named(
             "title",
-            label(
+            title(
                 card.label,
                 [title_width, 18.0],
-                [10.0, 9.0],
+                [8.0, 9.0],
                 palette.text,
                 false,
             ),
         ));
         if let Some(index) = card.toggle {
-            contents.push(named("toggle", toggle(index, [card_width - 36.0, 10.0])));
+            contents.push(named("toggle", toggle(index, [card_width - 28.0, 9.0])));
         }
         if !card.controls.is_empty() {
             contents.push(named(
                 "separator",
-                rounded([card_width - 20.0, 0.5], [10.0, 29.0], 0.0, palette.border),
+                rounded([card_width - 16.0, 0.5], [8.0, 26.0], 0.0, palette.border),
             ));
         }
-        let mut y = 34.0;
+        let mut y = CARD_HEADER;
         for index in &card.controls {
             let mut control_row = row(
                 &panel.controls[*index],
                 *index,
-                card_width - 20.0,
+                card_width - 16.0,
                 y,
                 palette,
             );
-            control_row["offset"][0] = json!(10.0);
+            control_row["offset"][0] = json!(8.0);
             contents.push(named(&format!("row_{index}"), control_row));
             y += row_height(&panel.controls[*index]);
         }
@@ -108,7 +108,7 @@ pub(super) fn catalog(
     }
     let document = json!({"namespace":"cinnabar_personal","panel":{
         "type":"screen","size":["100%","100%"],"render_game_behind":true,"absorbs_input":true,"should_steal_mouse":false,
-        "controls":[{"dialog":{"type":"panel","size":[width,height],"anchor_from":"top_middle","anchor_to":"top_middle","offset":[0.0,top],"controls":controls}}]
+        "controls":[{"dialog":{"type":"panel","size":[width,height],"anchor_from":"top_left","anchor_to":"top_left","offset":[((viewport[0]-width)*0.5).round(),top],"controls":controls}}]
     }});
     let bytes = serde_json::to_vec(&document).map_err(|error| error.to_string())?;
     let catalog = Catalog::from_files([
@@ -125,7 +125,7 @@ pub(super) fn catalog(
 
 fn navigation(panel: &Panel, layout: &Layout<'_>, category: usize, palette: Palette) -> Value {
     let width = layout.width;
-    let mut contents = chrome([width, NAV_HEIGHT], palette, 17.0);
+    let mut contents = chrome([width, NAV_HEIGHT], palette, 14.0);
     let title_width = if layout.categories.is_empty() {
         width - 46.0
     } else {
@@ -133,28 +133,28 @@ fn navigation(panel: &Panel, layout: &Layout<'_>, category: usize, palette: Pale
     };
     contents.push(named(
         "title",
-        label(
+        title(
             &panel.title,
             [title_width, 18.0],
-            [13.0, 13.0],
+            [12.0, 10.0],
             palette.text,
             false,
         ),
     ));
-    let space = width - title_width - 50.0;
+    let space = width - title_width - 42.0;
     let tab_width = space / layout.categories.len().max(1) as f64;
     for (index, name) in layout.categories.iter().enumerate() {
         let mut tab = Vec::new();
         if index == category {
             tab.push(named(
                 "selected",
-                rounded([tab_width - 2.0, 25.0], [0.0; 2], 12.5, palette.raised),
+                rounded([tab_width - 2.0, 22.0], [0.0; 2], 11.0, palette.raised),
             ));
         }
         let mut text = label(
             name,
             [tab_width - 2.0, 18.0],
-            [0.0, 9.0],
+            [0.0, 7.0],
             if index == category {
                 palette.text
             } else {
@@ -168,20 +168,20 @@ fn navigation(panel: &Panel, layout: &Layout<'_>, category: usize, palette: Pale
             &format!("category_{index}"),
             button(
                 &format!("mod.category:{index}"),
-                [tab_width - 2.0, 25.0],
-                [title_width + 15.0 + index as f64 * tab_width, 4.5],
+                [tab_width - 2.0, 22.0],
+                [title_width + 12.0 + index as f64 * tab_width, 3.0],
                 tab,
             ),
         ));
     }
-    let mut close = label("×", [20.0, 22.0], [0.0, 7.0], palette.muted, false);
+    let mut close = title("×", [20.0, 20.0], [0.0, 6.0], palette.muted, false);
     close["text_alignment"] = json!("center");
     contents.push(named(
         "close",
         button(
             "mod.close",
-            [22.0, 24.0],
-            [width - 32.0, 5.0],
+            [20.0, 22.0],
+            [width - 28.0, 3.0],
             vec![named("label", close)],
         ),
     ));
