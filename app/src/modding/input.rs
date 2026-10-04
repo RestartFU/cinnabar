@@ -104,10 +104,12 @@ pub(super) fn prepare_mod_input(
     let mut pressed = Vec::new();
     if let Some(events) = keyboard_events {
         for event in physical.keys.read(&events) {
-            if event.window == entity && event.state == ButtonState::Pressed && !event.repeat {
-                if !matches!(event.key_code, KeyCode::Unidentified(_)) {
-                    pressed.push(format!("{:?}", event.key_code));
-                }
+            if event.window == entity
+                && event.state == ButtonState::Pressed
+                && !event.repeat
+                && !matches!(event.key_code, KeyCode::Unidentified(_))
+            {
+                pressed.push(format!("{:?}", event.key_code));
             }
         }
     }
@@ -130,15 +132,13 @@ pub(super) fn prepare_mod_input(
     );
     let was_open = physical.panel_owned;
     let mut open = extension.host.panel_open() && presentation.mod_panel_open();
-    if !window.focused || absorbed || !extension.host.is_active() {
-        open = false;
-    } else if pressed.iter().any(|key| key == "Escape")
+    let close_requested = pressed.iter().any(|key| key == "Escape")
         && open
         && !extension
             .host
             .panel()
-            .is_some_and(|panel| panel.capture_key)
-    {
+            .is_some_and(|panel| panel.capture_key);
+    if !window.focused || absorbed || !extension.host.is_active() || close_requested {
         open = false;
     } else if extension
         .host
