@@ -39,12 +39,14 @@ pub mod panorama;
 #[cfg(test)]
 pub mod regression_snapshots;
 pub use panorama::{built_in_faces, launcher_view};
+mod accounts;
 pub mod always_sprint_setting;
 pub mod enhanced_setting;
 pub mod graphics_expander;
 #[cfg(test)]
 pub mod play_flow_snapshots;
 pub mod play_screen;
+mod player_list;
 pub mod recipe_book;
 pub mod remote_images;
 pub mod scene_policy;
@@ -116,6 +118,7 @@ pub(super) struct FormPresentation {
     /// The engine HUD's cached screens; carried across the per-frame reset.
     hud: hud::HudScreens,
     mod_hud: Option<mod_hud::ModHud>,
+    player_list: Option<player_list::PlayerList>,
     mod_panel: Option<mod_panel::ModPanel>,
     experience: Option<experience::ExperienceChrome>,
     /// The last container screen's layout; carried across the per-frame reset.
@@ -192,7 +195,7 @@ impl UiPresentationRuntime {
             engine.set_server_pack(&pack.ui_layers);
         }
         // Palette-only reloads can leave every cached text node unchanged.
-        self.last_menu = None;
+        self.last_frame = None;
         let atlas = server_pack::ServerAtlas::new(
             &pack.textures,
             pack.view.clone(),
@@ -308,7 +311,7 @@ impl UiPresentationRuntime {
             .map_or_else(Vec::new, |engine| engine.textures.oversized())
     }
 
-    pub(super) fn server_ui_pages(&self) -> &[render::UiTexturePage] {
+    pub(super) fn server_ui_pages(&self) -> &[render_model::UiTexturePage] {
         self.form_presentation
             .engine
             .as_ref()
@@ -428,6 +431,7 @@ impl UiPresentationRuntime {
             logged: state.logged,
             hud: state.hud,
             mod_hud: state.mod_hud,
+            player_list: state.player_list,
             mod_panel: state.mod_panel,
             experience: state.experience,
             container_cache: state.container_cache,

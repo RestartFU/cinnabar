@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 
 pub(super) const FONT_ENV: &str = "CINNABAR_MOD_FONT";
 pub(super) const MAX_SOURCE_BYTES: usize = 2 * 1024 * 1024;
-const ATLAS_SIDE: u32 = render::UI_LOCAL_FONT_PAGE_SIDE;
+const ATLAS_SIDE: u32 = render_model::UI_LOCAL_FONT_PAGE_SIDE;
 const FONT_EM: f32 = 18.0;
 const RASTER_SCALE: u32 = 2;
 

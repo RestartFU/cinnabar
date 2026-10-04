@@ -9,12 +9,12 @@ use bevy::render::{
     renderer::{RenderDevice, RenderQueue},
 };
 
-use crate::ui::UiRenderRejectReason;
 use bevy::prelude::{Res, ResMut};
 use bevy::render::render_resource::{BindGroupEntry, BindingResource, PipelineCache};
+use render_model::UiRenderRejectReason;
 
 use super::{UiGpu, UiPipeline};
-use crate::{UiTextureCatalog, UiTextureLocation, UiTexturePage, UiTexturePlan};
+use render_model::{UiTextureCatalog, UiTextureLocation, UiTexturePage, UiTexturePlan};
 
 /// Observes schedule-separated device-resource changes, not arbitrary context IDs.
 pub(crate) struct DeviceObservation {
@@ -113,7 +113,7 @@ pub(super) struct UiGpuTextures {
 }
 
 impl UiGpuTextures {
-    pub(super) fn allocated_buckets(&self) -> &[crate::UiTextureBucket] {
+    pub(super) fn allocated_buckets(&self) -> &[render_model::UiTextureBucket] {
         self.allocation_plan
             .as_ref()
             .map_or(&[], |plan| plan.buckets())
@@ -350,7 +350,7 @@ mod tests {
 
     #[test]
     fn local_font_replacement_writes_one_reserved_page_without_static_reallocation() {
-        use crate::ui_textures::{
+        use render_model::{
             MAX_UI_DYNAMIC_PAGES, UI_DYNAMIC_PAGE_SIDE, UI_LOCAL_FONT_PAGE_OFFSET,
             UI_LOCAL_FONT_PAGE_SIDE,
         };
@@ -488,12 +488,14 @@ mod tests {
 
     #[test]
     fn ui_model_resize_rebuilds_uploads_and_never_retains_old_bucket_bindings() {
-        use super::super::{UiGpu, UiRenderInput, UiRenderScene, UiRenderStats};
-        use crate::ui_textures::{
+        use super::super::{
+            UiGpu, UiRenderInput, UiRenderScene, UiRenderSceneResource, UiRenderStatsResource,
+        };
+        use bevy::ecs::system::RunSystemOnce;
+        use render_model::{
             UI_DYNAMIC_PAGE_SIDE, UI_MODEL_ATLAS_PAGE_OFFSET, UI_MODEL_ATLAS_SIDE,
             UI_PLAYER_SKIN_PAGE_OFFSET,
         };
-        use bevy::ecs::system::RunSystemOnce;
 
         let small = UiTexturePage::owned(
             [UI_DYNAMIC_PAGE_SIDE; 2],
@@ -529,9 +531,12 @@ mod tests {
         };
         let mut scene = UiRenderScene::default();
         scene
-            .publish(input(1, base.clone()), world.resource::<UiRenderStats>())
+            .publish(
+                input(1, base.clone()),
+                world.resource::<UiRenderStatsResource>(),
+            )
             .unwrap();
-        world.insert_resource(scene.clone());
+        world.insert_resource(UiRenderSceneResource(scene.clone()));
         world
             .run_system_once(super::super::prepare_ui_resources)
             .unwrap();
@@ -555,9 +560,12 @@ mod tests {
         );
 
         scene
-            .publish(input(2, resized.clone()), world.resource::<UiRenderStats>())
+            .publish(
+                input(2, resized.clone()),
+                world.resource::<UiRenderStatsResource>(),
+            )
             .unwrap();
-        world.insert_resource(scene.clone());
+        world.insert_resource(UiRenderSceneResource(scene.clone()));
         world
             .run_system_once(super::super::prepare_ui_resources)
             .unwrap();
@@ -591,9 +599,12 @@ mod tests {
         );
 
         scene
-            .publish(input(3, base.clone()), world.resource::<UiRenderStats>())
+            .publish(
+                input(3, base.clone()),
+                world.resource::<UiRenderStatsResource>(),
+            )
             .unwrap();
-        world.insert_resource(scene);
+        world.insert_resource(UiRenderSceneResource(scene));
         world
             .run_system_once(super::super::prepare_ui_resources)
             .unwrap();
@@ -610,7 +621,7 @@ mod tests {
 
     #[test]
     fn ui_model_plan_change_requires_all_writes_and_commits_only_after_complete_issuance() {
-        use crate::ui_textures::{UI_DYNAMIC_PAGE_SIDE, UI_PLAYER_SKIN_PAGE_OFFSET};
+        use render_model::{UI_DYNAMIC_PAGE_SIDE, UI_PLAYER_SKIN_PAGE_OFFSET};
         let mut pages = vec![catalog(0).pages()[0].clone()];
         pages.extend(vec![
             catalog(0).pages()[1].clone();

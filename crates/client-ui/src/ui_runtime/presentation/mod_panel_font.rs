@@ -3,7 +3,7 @@
 use std::sync::{Arc, OnceLock};
 
 use assets::{RuntimeFontCatalog, SheetGlyph};
-use render::{UI_LOCAL_FONT_PAGE_OFFSET, UI_LOCAL_FONT_PAGE_SIDE, UiTexturePage};
+use render_model::{UI_LOCAL_FONT_PAGE_OFFSET, UI_LOCAL_FONT_PAGE_SIDE, UiTexturePage};
 
 use super::{UiPresentationError, UiPresentationRuntime, session_glyphs};
 

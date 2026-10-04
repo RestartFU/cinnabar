@@ -76,7 +76,7 @@ fn full_icon_catalog_and_reserved_dynamic_pages_are_admitted_together() {
         independent_icons(735, 16),
     )
     .unwrap();
-    assert!(presentation.textures.plan().bytes() <= render::MAX_UI_TEXTURE_BYTES);
+    assert!(presentation.textures.plan().bytes() <= render_model::MAX_UI_TEXTURE_BYTES);
     assert_eq!(presentation.icon_refs.as_ref().unwrap().len(), 735);
     // The largest icon carrier still fits beside the CJK font; the planner refuses whole
     // catalogs past the byte budget (see render's `planner_checks_entire_catalog_and_all_limits`).
@@ -84,7 +84,7 @@ fn full_icon_catalog_and_reserved_dynamic_pages_are_admitted_together() {
         UiPresentationRuntime::with_hud_and_icons(font, fixture_hud(), independent_icons(900, 64))
             .unwrap();
     assert_eq!(large.icon_refs.as_ref().unwrap().len(), 900);
-    assert!(large.textures.plan().bytes() <= render::MAX_UI_TEXTURE_BYTES);
+    assert!(large.textures.plan().bytes() <= render_model::MAX_UI_TEXTURE_BYTES);
 }
 
 #[test]
@@ -101,7 +101,7 @@ fn ordinary_cube_thumbnail_pages_share_the_complete_static_budget() {
     .unwrap();
     assert_eq!(presentation.icon_refs.as_ref().unwrap().len(), 1024);
     assert!(presentation.textures.dynamic_start() < presentation.textures.pages().len());
-    assert!(presentation.textures.plan().bytes() <= render::MAX_UI_TEXTURE_BYTES);
+    assert!(presentation.textures.plan().bytes() <= render_model::MAX_UI_TEXTURE_BYTES);
     assert!(
         UiPresentationRuntime::with_hud_and_icons(font, fixture_hud(), independent_icons(900, 64))
             .is_ok(),
@@ -153,15 +153,15 @@ fn mixed_native_font_pages_fit_ui_without_max_side_padding() {
     let presentation = UiPresentationRuntime::new(Arc::clone(&font)).unwrap();
     let font_bytes: usize = font.pages().iter().map(|page| page.rgba8.len()).sum();
     let page_bytes = |side: u32| side as usize * side as usize * 4;
-    let small_page_bytes = page_bytes(render::UI_DYNAMIC_PAGE_SIDE);
-    let dynamic_bytes = render::UI_LOCAL_FONT_PAGE_OFFSET * small_page_bytes
-        + page_bytes(render::UI_LOCAL_FONT_PAGE_SIDE);
+    let small_page_bytes = page_bytes(render_model::UI_DYNAMIC_PAGE_SIDE);
+    let dynamic_bytes = render_model::UI_LOCAL_FONT_PAGE_OFFSET * small_page_bytes
+        + page_bytes(render_model::UI_LOCAL_FONT_PAGE_SIDE);
     assert_eq!(
         presentation.textures.plan().bytes(),
         font_bytes
             + small_page_bytes
             + dynamic_bytes
-            + render::MAX_UI_ART_PAGES * page_bytes(render::UI_ART_PAGE_SIDE)
+            + render_model::MAX_UI_ART_PAGES * page_bytes(render_model::UI_ART_PAGE_SIDE)
     );
     for (index, source) in font.pages().iter().enumerate() {
         let page = &presentation.textures.pages()[index];
@@ -174,7 +174,6 @@ fn mixed_native_font_pages_fit_ui_without_max_side_padding() {
 fn actual_producer_publish_and_extraction_keep_revision_and_publication_identity_joined() {
     let player_runtime = player_state::PlayerState::new(1);
 
-    use bevy::render::extract_resource::ExtractResource;
     let mut presentation = UiPresentationRuntime::new(independent_font(&[1024, 2048])).unwrap();
     let runtime = UiRuntime::new(1);
     let stats = UiRenderStats::default();
@@ -204,7 +203,8 @@ fn actual_producer_publish_and_extraction_keep_revision_and_publication_identity
             Arc::ptr_eq(scene.input.as_ref().unwrap(), &publication),
             "equivalent republish preserves accepted Arc"
         );
-        let extracted = UiRenderScene::extract_resource(&scene);
+        // Render-world extraction clones the scene.
+        let extracted = scene.clone();
         assert!(Arc::ptr_eq(extracted.input.as_ref().unwrap(), &publication));
     }
 }
@@ -387,7 +387,7 @@ fn resize_and_session_reset_do_not_reload_static_pixels_or_retain_dynamic_owners
     // Session pages clear; the art pages keep the launcher's title logo.
     let dynamic = reset.textures.dynamic_start();
     assert!(
-        reset.textures.pages()[dynamic..dynamic + render::MAX_UI_DYNAMIC_PAGES]
+        reset.textures.pages()[dynamic..dynamic + render_model::MAX_UI_DYNAMIC_PAGES]
             .iter()
             .all(|p| p.pixels().iter().all(|&v| v == 0))
     );
@@ -569,7 +569,7 @@ fn session_glyph_sheets_extend_the_font_and_reset_with_the_session() {
     assert_eq!(restored.atlas[0].rgba8, before.atlas[0].rgba8);
     assert_eq!(
         presentation.textures.pages().len(),
-        dynamic_start + render::MAX_UI_DYNAMIC_PAGES + render::MAX_UI_ART_PAGES
+        dynamic_start + render_model::MAX_UI_DYNAMIC_PAGES + render_model::MAX_UI_ART_PAGES
     );
 }
 
