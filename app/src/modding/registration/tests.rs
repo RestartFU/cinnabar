@@ -74,7 +74,7 @@ fn fixture(enabled: bool, frame: &str, text: &str) -> String {
         .replacen("(func (export \"init\")", &format!("(func (export \"init\") i32.const 1024 i32.const {} i32.const 512 call $panel", panel.len()), 1)
 }
 
-fn candidate(directory: &Scratch, enabled: bool, text: &str) -> Candidate {
+fn candidate(directory: &Scratch, enabled: bool, text: &str) -> Box<Candidate> {
     let registration = registration(directory, "first");
     fs::write(
         &registration.component,
@@ -85,7 +85,7 @@ fn candidate(directory: &Scratch, enabled: bool, text: &str) -> Candidate {
         ),
     )
     .unwrap();
-    build_candidate(source_snapshot(registration).unwrap()).unwrap()
+    Box::new(build_candidate(source_snapshot(registration).unwrap()).unwrap())
 }
 
 fn world() -> (World, Receiver<Message>, Receiver<ModHost>) {
@@ -384,7 +384,7 @@ fn inactive_guest_is_reinitialized_instead_of_falsely_acknowledged_as_loaded() {
         Update {
             generation: 1,
             request_id: "first".into(),
-            result: Ok(Action::Replace(candidate)),
+            result: Ok(Action::Replace(Box::new(candidate))),
         },
     );
     messages.try_recv().unwrap();

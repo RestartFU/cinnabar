@@ -141,7 +141,7 @@ fn build_candidate_with_settings(
 
 enum Action {
     Disabled,
-    Replace(Candidate),
+    Replace(Box<Candidate>),
     Reuse {
         identity: [u8; 32],
         registration: Registration,
@@ -465,7 +465,7 @@ fn install(world: &mut World, update: Update) {
         })
     {
         let watcher = world.resource::<Watcher>();
-        if watcher.retirement_used() + 1 > watcher.retired.capacity().unwrap_or(0) {
+        if watcher.retirement_used() >= watcher.retired.capacity().unwrap_or(0) {
             *watcher.pending.lock().expect("extension pending mutex") = Some(update);
             return;
         }
@@ -758,7 +758,8 @@ fn worker(
                         let request_id = request.snapshot.registration.request_id.clone();
                         let result = after_retirement(&receive_retired, || {
                             let current = settings.lock().expect("extension settings snapshot").clone();
-                            build_candidate_with_settings(request.snapshot, current.as_ref()).map(Action::Replace)
+                            build_candidate_with_settings(request.snapshot, current.as_ref())
+                                .map(|candidate| Action::Replace(Box::new(candidate)))
                         });
                         if request.generation == generation.load(Ordering::Acquire) {
                             let _ = results.send(Update {
