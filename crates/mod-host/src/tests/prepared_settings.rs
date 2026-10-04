@@ -17,7 +17,7 @@ fn settings_guest(init: &str, frame: &str) -> String {
         .replace("(import \"host\" \"time\"", "(import \"host\" \"save\" (func $save (param i32 i32 i32))) (import \"host\" \"time\"")
         .replace("(export \"time\" (func $lower-time))", "(export \"save\" (func $lower-settings)) (export \"time\" (func $lower-time))")
         .replace("(data (i32.const 0)", &format!("(data (i32.const 1024) \"{}\") (data (i32.const 2048) \"{}\") (data (i32.const 0)", init.replace('"', "\\22"), frame.replace('"', "\\22")))
-        .replace("(func (export \"init\")", &format!("(func (export \"init\") i32.const 1024 i32.const {} i32.const 512 call $save", init.len()))
+        .replacen("(func (export \"init\")", &format!("(func (export \"init\") i32.const 1024 i32.const {} i32.const 512 call $save", init.len()), 1)
 }
 
 #[test]
