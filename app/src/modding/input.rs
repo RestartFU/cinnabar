@@ -84,7 +84,7 @@ impl PhysicalControls {
     reason = "Routes one physical frame before gameplay authority."
 )]
 pub(super) fn prepare_mod_input(
-    mut extension: ResMut<ModRuntime>,
+    extension: Option<ResMut<ModRuntime>>,
     mut physical: Local<PhysicalControls>,
     keyboard_events: Option<Res<Messages<KeyboardInput>>>,
     mouse_events: Option<Res<Messages<MouseButtonInput>>>,
@@ -98,7 +98,38 @@ pub(super) fn prepare_mod_input(
     mut presentation: ResMut<UiPresentationRuntime>,
     time: Option<Res<Time>>,
 ) {
+    let extension = extension.filter(|runtime| !runtime.suspended);
+    if extension.is_none() {
+        physical.left_held = false;
+        if !physical.panel_owned {
+            return;
+        }
+    }
     let Ok((entity, window, mut cursor)) = windows.single_mut() else {
+        return;
+    };
+    let Some(mut extension) = extension else {
+        let absorbed = menu.as_deref().map_or_else(
+            || ui.ui_focused(&player),
+            |menu| presentation.base_absorbs_gameplay_input(&player, &ui, menu),
+        );
+        let restore = physical.finish_panel(
+            false,
+            window.focused,
+            absorbed,
+            crate::camera::input_is_active(window, &cursor),
+        );
+        if let Some(mouse) = mouse.as_mut() {
+            mouse.clear();
+        }
+        keys.reset(KeyCode::Escape);
+        if restore {
+            cursor.grab_mode = CursorGrabMode::Locked;
+            cursor.visible = false;
+            if let Some(motion) = motion.as_mut() {
+                motion.delta = Vec2::ZERO;
+            }
+        }
         return;
     };
     let mut pressed = Vec::new();
