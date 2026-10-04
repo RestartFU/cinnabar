@@ -59,9 +59,74 @@ mod tests {
         physical.finish_panel(true, true, false, false);
         assert!(!physical.finish_panel(false, true, false, false));
     }
+
+    #[test]
+    fn dormant_input_discards_old_edges_and_observes_only_next_attachment_edges() {
+        use bevy::input::keyboard::Key;
+        let mut keyboard = Messages::default();
+        let key = |key_code, logical_key| KeyboardInput {
+            key_code,
+            logical_key,
+            state: ButtonState::Pressed,
+            text: None,
+            repeat: false,
+            window: Entity::PLACEHOLDER,
+        };
+        keyboard.write(key(KeyCode::F8, Key::F8));
+        let mut mouse = Messages::default();
+        mouse.write(MouseButtonInput {
+            button: MouseButton::Left,
+            state: ButtonState::Pressed,
+            window: Entity::PLACEHOLDER,
+        });
+        let mut physical = PhysicalControls {
+            left_held: true,
+            ..Default::default()
+        };
+        physical.discard_pending(Some(&keyboard), Some(&mouse));
+        assert!(!physical.left_held);
+        assert_eq!(physical.keys.read(&keyboard).count(), 0);
+        assert_eq!(physical.mouse.read(&mouse).count(), 0);
+        keyboard.write(key(KeyCode::F10, Key::F10));
+        mouse.write(MouseButtonInput {
+            button: MouseButton::Left,
+            state: ButtonState::Released,
+            window: Entity::PLACEHOLDER,
+        });
+        assert_eq!(
+            physical
+                .keys
+                .read(&keyboard)
+                .map(|event| event.key_code)
+                .collect::<Vec<_>>(),
+            [KeyCode::F10]
+        );
+        assert_eq!(
+            physical
+                .mouse
+                .read(&mouse)
+                .map(|event| event.state)
+                .collect::<Vec<_>>(),
+            [ButtonState::Released]
+        );
+    }
 }
 
 impl PhysicalControls {
+    fn discard_pending(
+        &mut self,
+        keyboard: Option<&Messages<KeyboardInput>>,
+        mouse: Option<&Messages<MouseButtonInput>>,
+    ) {
+        if let Some(events) = keyboard {
+            self.keys.clear(events);
+        }
+        if let Some(events) = mouse {
+            self.mouse.clear(events);
+        }
+        self.left_held = false;
+    }
+
     /// Remembers input ownership independently of guest reload or quarantine.
     fn finish_panel(&mut self, open: bool, focused: bool, absorbed: bool, captured: bool) -> bool {
         if !focused || absorbed {
@@ -100,7 +165,7 @@ pub(super) fn prepare_mod_input(
 ) {
     let extension = extension.filter(|runtime| !runtime.suspended);
     if extension.is_none() {
-        physical.left_held = false;
+        physical.discard_pending(keyboard_events.as_deref(), mouse_events.as_deref());
         if !physical.panel_owned {
             return;
         }
