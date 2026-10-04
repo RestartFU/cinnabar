@@ -236,6 +236,43 @@ mod tests {
     }
 
     #[test]
+    #[cfg(any(unix, windows))]
+    fn companion_symlink_is_replaced_without_writing_its_outside_target() {
+        let selected = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let component = selected.path().join("selected.component.wasm");
+        let companion = component.with_extension("settings.json");
+        let target = outside.path().join("private.json");
+        std::fs::write(&target, "outside target unchanged").unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&target, &companion).unwrap();
+        #[cfg(windows)]
+        if let Err(error) = std::os::windows::fs::symlink_file(&target, &companion) {
+            if error.raw_os_error() == Some(1314) {
+                eprintln!(
+                    "Skipping symlink fixture: SeCreateSymbolicLinkPrivilege is unavailable."
+                );
+                return;
+            }
+            panic!("create companion symlink fixture: {error}");
+        }
+        let writer = SettingsWriter::new(&component).unwrap();
+        writer.submit("{\"cps\":25}".into());
+        drop(writer);
+        assert_eq!(
+            std::fs::read_to_string(&target).unwrap(),
+            "outside target unchanged"
+        );
+        assert_eq!(std::fs::read_to_string(&companion).unwrap(), "{\"cps\":25}");
+        assert!(
+            !std::fs::symlink_metadata(companion)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+    }
+
+    #[test]
     fn persistence_failure_is_reported_once_without_retry_spam() {
         let (failed, failure) = mpsc::sync_channel(0);
         let attempts = Arc::new(AtomicU64::new(0));
