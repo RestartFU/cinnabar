@@ -54,13 +54,13 @@ fn real_position_visual_is_denied_by_default_retained_on_success_and_cleared_on_
         packet_delay: true,
         ..Default::default()
     };
-    let (_directory, mut enabled) = load(&show_position(true, false), "", granted);
+    let (_directory, mut enabled) = load(&show_position(true, false), "", granted.clone());
     enabled.frame(false).unwrap();
     assert!(enabled.show_real_position());
     let (_directory, mut disabled) = load(
         &show_position(true, false),
         &show_position(false, false),
-        granted,
+        granted.clone(),
     );
     disabled.frame(false).unwrap();
     assert!(!disabled.show_real_position());
@@ -82,8 +82,11 @@ fn packet_delay_is_denied_by_default_and_bounded_without_a_gameplay_frame() {
         packet_delay: true,
         ..Default::default()
     };
-    let (_directory, mut invalid) =
-        load("", &delay(mod_api::MAX_PACKET_DELAY_MS + 1, true), granted);
+    let (_directory, mut invalid) = load(
+        "",
+        &delay(mod_api::MAX_PACKET_DELAY_MS + 1, true),
+        granted.clone(),
+    );
     invalid.frame(false).unwrap();
     assert_eq!(invalid.packet_delay_ms(), 0);
     let (_directory, mut enabled) = load(&delay(mod_api::MAX_PACKET_DELAY_MS, false), "", granted);
@@ -98,7 +101,7 @@ fn packet_delay_commits_on_success_and_clears_after_a_guest_trap() {
         packet_delay: true,
         ..Default::default()
     };
-    let (_directory, mut disabled) = load(&delay(200, false), &delay(0, false), granted);
+    let (_directory, mut disabled) = load(&delay(200, false), &delay(0, false), granted.clone());
     assert_eq!(disabled.packet_delay_ms(), 200);
     disabled.frame(false).unwrap();
     assert_eq!(disabled.packet_delay_ms(), 0);
@@ -209,7 +212,7 @@ fn capabilities_are_independent_and_denied_by_default() {
             read(!permissions.players, true),
             rotate(0.1, 0.0, !permissions.camera)
         );
-        let (_dir, mut host) = load("", &frame, permissions);
+        let (_dir, mut host) = load("", &frame, permissions.clone());
         host.frame_with_gameplay(false, Some(snapshot())).unwrap();
         assert_eq!(host.take_camera_delta().is_some(), permissions.camera);
         assert!(host.is_active());

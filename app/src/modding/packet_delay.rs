@@ -181,16 +181,17 @@ impl Worker {
         }
     }
 }
+/// The first active, granted nonzero-delay owner also owns its position witness opt-in.
 fn requested(extension: Option<&ModRuntime>) -> (u32, bool) {
-    extension
-        .filter(|runtime| {
-            !runtime.suspended && runtime.host.is_active() && runtime.grants.packet_delay
-        })
-        .map_or((0, false), |runtime| {
-            (
-                runtime.host.packet_delay_ms(),
-                runtime.host.show_real_position(),
-            )
+    let Some(runtime) = extension.filter(|runtime| !runtime.suspended) else {
+        return (0, false);
+    };
+    (0..runtime.host_count())
+        .map(|index| runtime.host(index))
+        .filter(|host| host.is_active() && host.grants().packet_delay)
+        .find(|host| host.packet_delay_ms() != 0)
+        .map_or((0, false), |host| {
+            (host.packet_delay_ms(), host.show_real_position())
         })
 }
 pub(super) fn publish_packet_delay(
@@ -224,6 +225,43 @@ pub(super) fn publish_packet_delay(
 mod tests {
     use super::*;
     use protocol::launcher_control::{PacketDelayLease, RelayedPosition};
+    #[test]
+    fn multiple_mods_keep_the_visual_flag_with_the_selected_delay_owner() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut app = App::new();
+        let package = include_str!("../../../crates/mod-api/wit/extension.wit")
+            .lines()
+            .next()
+            .unwrap()
+            .trim_start_matches("package ")
+            .trim_end_matches(';');
+        let (name, version) = package.split_once('@').unwrap();
+        let gameplay_interface = format!("{name}/gameplay@{version}");
+        let entries = [(0, true, false), (200, false, true), (400, true, false)]
+            .into_iter()
+            .enumerate()
+            .map(|(index, (delay, show, trap))| {
+                let path = directory.path().join(format!("delay-{index}.wat"));
+                let init = format!(
+                    "i32.const {delay} i32.const 256 call $delay i32.const {} i32.const 256 call $show",
+                    u8::from(show)
+                );
+                let source = include_str!("../../../crates/mod-host/src/tests/gameplay.wat")
+                    .replace("$GAMEPLAY", &gameplay_interface)
+                    .replace("$INIT", &init)
+                    .replace("$FRAME", if trap { "unreachable" } else { "" });
+                std::fs::write(&path, source).unwrap();
+                (path, mod_host::ModGrants { packet_delay: true, ..Default::default() })
+            })
+            .collect();
+        super::super::configure_set(&mut app, entries);
+        let mut runtime = app.world_mut().resource_mut::<ModRuntime>();
+        assert_eq!(requested(Some(&runtime)), (200, false));
+        assert!(runtime.host_mut(1).frame(false).is_err());
+        assert_eq!(requested(Some(&runtime)), (400, true));
+        runtime.suspended = true;
+        assert_eq!(requested(Some(&runtime)), (0, false));
+    }
     #[test]
     fn absent_offline_ui_and_network_clear_the_published_witness() {
         let mut app = App::new();
