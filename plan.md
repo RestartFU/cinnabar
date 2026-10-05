@@ -5574,3 +5574,10 @@ all task background processes, skipping the remaining verification and pushing
 directly to remote dev; the affected gate and new unit regressions were not run.
 Native hat geometry, other block-entity materials and full version-matched
 rendering parity remain open gates.
+## Freelook extension
+
+Freelook is a requested Cinnabar extension, not vanilla behavior. Hold its configurable
+Keyboard & Mouse binding (default F) to orbit a collision-resolved third-person camera
+while retaining gameplay facing, movement and interaction direction. Release, UI focus
+or window focus loss returns to the prior perspective. Native visual/input acceptance
+is incomplete until a Windows rendered-frame pass is recorded.
