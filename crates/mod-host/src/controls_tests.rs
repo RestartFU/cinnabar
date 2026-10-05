@@ -21,6 +21,8 @@ fn state(grants: ModGrants) -> State {
         packet_delay_ms: 0,
         pending_packet_delay: None,
         packet_delay_writes: 0,
+        show_real_position: false,
+        pending_show_real_position: None,
         controls: ControlState::new("{\"cps\":12}".into()),
     }
 }

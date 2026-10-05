@@ -33,6 +33,8 @@ struct State {
     packet_delay_ms: u32,
     pending_packet_delay: Option<u32>,
     packet_delay_writes: u32,
+    show_real_position: bool,
+    pending_show_real_position: Option<bool>,
     controls: controls::ControlState,
 }
 
@@ -126,6 +128,8 @@ impl Instance {
             packet_delay_ms: 0,
             pending_packet_delay: None,
             packet_delay_writes: 0,
+            show_real_position: false,
+            pending_show_real_position: None,
             controls: controls::ControlState::new(settings),
         };
         let mut store = Store::new(engine, state);
@@ -154,6 +158,7 @@ impl Instance {
         state.camera_delta = None;
         state.pending_packet_delay = None;
         state.packet_delay_writes = 0;
+        state.pending_show_real_position = None;
         state.controls.begin_frame();
         if !self.active {
             return Ok(());
@@ -181,6 +186,8 @@ impl Instance {
             self.store.data_mut().controls.revoke();
             self.store.data_mut().packet_delay_ms = 0;
             self.store.data_mut().pending_packet_delay = None;
+            self.store.data_mut().show_real_position = false;
+            self.store.data_mut().pending_show_real_position = None;
             bail!("mod quarantined after a guest trap: {error:#}");
         }
         commit(&mut self.store);
@@ -195,6 +202,9 @@ impl Instance {
 
     pub(super) fn packet_delay_ms(&self) -> u32 {
         self.store.data().packet_delay_ms
+    }
+    pub(super) fn show_real_position(&self) -> bool {
+        self.store.data().show_real_position
     }
 
     /// Reads the committed presentation clock without entering the component.
@@ -243,6 +253,9 @@ fn commit(store: &mut Store<State>) {
     state.camera_delta = state.pending_camera.take();
     if let Some(delay) = state.pending_packet_delay.take() {
         state.packet_delay_ms = delay;
+    }
+    if let Some(show) = state.pending_show_real_position.take() {
+        state.show_real_position = show;
     }
     if let Some(ticks) = state.pending_time.take() {
         state.time_override = ticks;
