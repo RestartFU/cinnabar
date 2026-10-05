@@ -28,6 +28,10 @@ const INTERACTION_ENV: &str = "CINNABAR_MOD_INTERACTION";
 #[cfg(feature = "local-mods")]
 const SETTINGS_ENV: &str = "CINNABAR_MOD_SETTINGS";
 #[cfg(feature = "local-mods")]
+const RENDER_ENV: &str = "CINNABAR_MOD_RENDER";
+#[cfg(feature = "local-mods")]
+const RENDER_DEPTH_ENV: &str = "CINNABAR_MOD_RENDER_DEPTH";
+#[cfg(feature = "local-mods")]
 const ENTITIES_ENV: &str = "CINNABAR_MOD_ENTITIES";
 /// Comma-separated command names the selected component may request.
 #[cfg(feature = "local-mods")]
@@ -60,6 +64,9 @@ struct ModRuntime {
     label: Option<String>,
     label_inputs: Vec<String>,
     label_rebuilds: u64,
+    /// Per-mod render generations behind the last merged scene.
+    render_sources: Vec<u64>,
+    render_merge: mod_host::mod_render::RenderMerge,
     last_reload: Instant,
     controls: mod_host::ControlFrame,
     reload_on_main: bool,
@@ -108,6 +115,8 @@ fn configure(app: &mut App, path: Option<&Path>) {
         controls: std::env::var(CONTROLS_ENV).is_ok_and(|value| value == "1"),
         interaction: std::env::var(INTERACTION_ENV).is_ok_and(|value| value == "1"),
         settings: std::env::var(SETTINGS_ENV).is_ok_and(|value| value == "1"),
+        render: std::env::var(RENDER_ENV).is_ok_and(|value| value == "1"),
+        render_depth: std::env::var(RENDER_DEPTH_ENV).is_ok_and(|value| value == "1"),
         entities: std::env::var(ENTITIES_ENV).is_ok_and(|value| value == "1"),
         commands: std::env::var(COMMANDS_ENV)
             .map(|names| {
@@ -155,6 +164,8 @@ fn configure_set(app: &mut App, mods: Vec<(std::path::PathBuf, ModGrants)>) {
             label: None,
             label_inputs: Vec::new(),
             label_rebuilds: 0,
+            render_sources: Vec::new(),
+            render_merge: Default::default(),
             last_reload: Instant::now(),
             controls: mod_host::empty_controls(),
             reload_on_main: true,
@@ -181,7 +192,9 @@ fn configure_set(app: &mut App, mods: Vec<(std::path::PathBuf, ModGrants)>) {
 #[cfg(feature = "local-mods")]
 fn configure_systems(app: &mut App, watching: bool) {
     ghost::configure(app);
-    app.init_resource::<ModCueFeed>();
+    app.init_resource::<ModCueFeed>()
+        .add_plugins(::render::ModRenderPlugin)
+        .add_systems(Update, render::grant_depth_sampling);
     if watching {
         app.add_systems(
             Update,
@@ -229,6 +242,7 @@ fn drive_mod(
     mut gameplay: gameplay::GameplayContext,
     interaction: Option<ResMut<interaction::ModInteraction>>,
     watcher: Option<Res<registration::Watcher>>,
+    render_scene: Option<ResMut<::render::ModRenderScene>>,
     mut outputs: (
         Option<Res<crate::runtime::network::NetworkHandle>>,
         Option<ResMut<crate::camera::CameraSettingsAuthority>>,
@@ -296,6 +310,7 @@ fn drive_mod(
             eprintln!("Cinnabar extension callback failed: {error}");
         },
     );
+    render::publish(render_scene, &mut extension);
     if let Some(watcher) = watcher.as_ref() {
         watcher.remember_settings(Some(&extension.host));
     }
@@ -455,3 +470,5 @@ mod input;
 pub(crate) mod interaction;
 #[cfg(feature = "local-mods")]
 pub(crate) mod packet_delay;
+#[cfg(feature = "local-mods")]
+mod render;

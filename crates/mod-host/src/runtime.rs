@@ -18,6 +18,8 @@ const MAX_IMPORT_WRITES: u32 = 8;
 mod controls;
 #[path = "gameplay.rs"]
 mod gameplay;
+#[path = "render.rs"]
+mod render;
 
 struct State {
     limits: StoreLimits,
@@ -41,6 +43,7 @@ struct State {
     pending_show_real_position: Option<bool>,
     controls: controls::ControlState,
     world: gameplay::WorldState,
+    render: render::RenderState,
 }
 
 impl State {
@@ -74,6 +77,7 @@ impl State {
             pending_show_real_position: None,
             controls: controls::ControlState::new(settings),
             world: gameplay::WorldState::default(),
+            render: render::RenderState::new(),
         }
     }
 }
@@ -173,6 +177,7 @@ impl Instance {
         state.packet_delay_writes = 0;
         state.pending_show_real_position = None;
         state.controls.begin_frame();
+        state.render.begin_frame();
         state.world.begin_frame();
         if !self.active {
             return Ok(());
@@ -202,6 +207,7 @@ impl Instance {
             self.store.data_mut().pending_camera = None;
             self.store.data_mut().camera_delta = None;
             self.store.data_mut().controls.revoke();
+            self.store.data_mut().render.revoke();
             self.store.data_mut().world = gameplay::WorldState::default();
             self.store.data_mut().packet_delay_ms = 0;
             self.store.data_mut().pending_packet_delay = None;
@@ -279,6 +285,11 @@ impl Instance {
         self.store.data_mut().controls.dirty_settings = None;
     }
 
+    pub(super) fn render(&self) -> (&mod_render::RenderOutput, u64) {
+        let render = &self.store.data().render;
+        (render.output(), render.generation())
+    }
+
     pub(super) fn settings(&self) -> &str {
         self.store.data().controls.settings()
     }
@@ -288,6 +299,7 @@ impl Instance {
 fn commit(store: &mut Store<State>) {
     let state = store.data_mut();
     state.controls.commit();
+    state.render.commit();
     state.world.commit();
     state.camera_delta = state.pending_camera.take();
     if let Some(delay) = state.pending_packet_delay.take() {
