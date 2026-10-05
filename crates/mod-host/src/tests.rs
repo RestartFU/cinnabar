@@ -1,4 +1,5 @@
 use super::*;
+mod block_highlights;
 mod gameplay;
 mod prepared_settings;
 mod render;

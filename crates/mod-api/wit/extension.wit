@@ -129,6 +129,10 @@ interface render {
         pattern: billboard-pattern,
         upright: bool,
     }
+    /// Retained full-block highlights for matching blocks already loaded by the host.
+    record block-highlight-spec { identifiers: list<string>, range: f32, color: rgba }
+    /// Requires block-highlights authority; none clears this instance's selection.
+    set-block-highlights: func(spec: option<block-highlight-spec>) -> result<_, string>;
     record primitives {
         decals: list<decal>,
         ribbons: list<ribbon>,

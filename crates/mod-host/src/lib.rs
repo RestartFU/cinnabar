@@ -88,6 +88,8 @@ pub struct ModGrants {
     pub commands: Vec<String>,
     /// Allows bounded post-login packet delay through the private core endpoint.
     pub packet_delay: bool,
+    /// Allows retained full-block highlights of matching loaded blocks.
+    pub block_highlights: bool,
 }
 
 /// A developer-selected component with transactional reload and trap quarantine.
@@ -199,6 +201,11 @@ impl ModHost {
         self.instance.packet_delay_ms()
     }
     /// Explicit opt-in to the private core's last-relayed local position witness.
+    /// Committed selection; no raw block reads are exposed to the component.
+    pub fn block_highlights(&self) -> Option<&mod_api::BlockHighlightSpec> {
+        self.instance.block_highlights()
+    }
+
     pub fn show_real_position(&self) -> bool {
         self.instance.show_real_position()
     }

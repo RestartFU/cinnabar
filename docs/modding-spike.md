@@ -373,3 +373,15 @@ HUD-visible bindings and alpha. The spike suppresses its label for focus, menus,
 loading and a statically hidden underlying HUD, but does not yet follow vanilla
 hide-GUI, partial server HUD visibility or animated opacity. See `plan.md`; the
 hidden-HUD test is not full visibility parity evidence.
+
+## Loaded block highlights
+
+The separate `block_highlights` grant (`CINNABAR_MOD_BLOCK_HIGHLIGHTS=1`) permits
+`render.set-block-highlights`. A retained specification names up to
+`mod_api::MAX_BLOCK_HIGHLIGHT_IDENTIFIERS` canonical block identifiers, a bounded
+camera-relative range, and linear RGBA colour. The host scans only loaded primary
+block layers, caches palettes and subchunk identities, and draws full unit cubes
+through terrain without changing world or packet state. Results share the
+`mod_api::MAX_BLOCK_HIGHLIGHTS` nearest-block budget; the earliest active mod wins.
+`none`, unload, reload, or a trap clears the overlay. Output commits only after a
+successful callback; repeated unchanged input rebuilds no geometry.
