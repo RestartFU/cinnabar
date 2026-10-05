@@ -865,10 +865,10 @@ fn worker(
                 }
             }
         }
-        if let Some(request) = pending_load.take() {
-            if let Err(TrySendError::Full(request)) = loads.try_send(request) {
-                pending_load = Some(request);
-            }
+        if let Some(request) = pending_load.take()
+            && let Err(TrySendError::Full(request)) = loads.try_send(request)
+        {
+            pending_load = Some(request);
         }
         for update in receive_results.try_iter() {
             if update.generation == latest.load(Ordering::Acquire) {
@@ -883,10 +883,10 @@ fn worker(
                 pending_update = Some(update);
             }
         }
-        if let Some(update) = pending_update.take() {
-            if let Err(TrySendError::Full(update)) = updates.try_send(update) {
-                pending_update = Some(update);
-            }
+        if let Some(update) = pending_update.take()
+            && let Err(TrySendError::Full(update)) = updates.try_send(update)
+        {
+            pending_update = Some(update);
         }
         match messages.recv_timeout(next_poll.saturating_duration_since(Instant::now())) {
             Ok(Message::Acknowledge {
