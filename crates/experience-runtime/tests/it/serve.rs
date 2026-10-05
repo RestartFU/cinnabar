@@ -260,20 +260,23 @@ fn register_trap_reason_has_no_backtrace() {
 #[test]
 fn unwritable_output_exits_2() {
     let empty = tempfile::tempdir().unwrap();
+    let output = tempfile::NamedTempFile::new().unwrap();
+    let read_only = std::fs::File::open(output.path()).unwrap();
     let mut child = Command::new(env!("CARGO_BIN_EXE_experience-runtime"))
         .arg("serve")
         .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        // Read-only access cannot become writable when another process inherits a handle.
+        .stdout(Stdio::from(read_only))
+        .stderr(Stdio::piped())
         .spawn()
         .expect("starting the runtime");
-    // Nobody reads the answer.
-    drop(child.stdout.take());
     let mut stdin = child.stdin.take().expect("piped stdin");
     write_frame(&mut stdin, &load_request(empty.path())).unwrap();
     drop(stdin);
-    let status = child.wait().expect("waiting for the runtime");
-    assert_eq!(status.code(), Some(EXIT_PROTOCOL));
+    let result = child.wait_with_output().expect("waiting for the runtime");
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert_eq!(result.status.code(), Some(EXIT_PROTOCOL), "{stderr}");
+    assert!(stderr.contains("writing a frame"), "{stderr}");
 }
 
 /// A first frame other than `load`, or a second `load`, ends the session unanswered.
