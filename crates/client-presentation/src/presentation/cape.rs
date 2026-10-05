@@ -17,9 +17,6 @@ use super::actors::ActorPresentationBatch;
 /// Render layer of a player's cape, below the extra texture layers.
 pub const ACTOR_LAYER_CAPE: u8 = 24;
 
-/// Half turn about the vertical axis: the cape geometry's authored rest rotation.
-const REST_TURN: [f32; 4] = [0.0, 1.0, 0.0, 0.0];
-
 /// The cape geometry and its bone order, resolved once from the entity catalog.
 #[derive(Clone)]
 pub struct CapeRig {
@@ -80,17 +77,7 @@ pub fn cape_layer(width: u32, height: u32, rgba8: &[u8]) -> Option<Arc<[u8]>> {
     Some(layer.into())
 }
 
-fn multiply(left: [f32; 4], right: [f32; 4]) -> [f32; 4] {
-    let ([lx, ly, lz, lw], [rx, ry, rz, rw]) = (left, right);
-    [
-        lw * rx + lx * rw + ly * rz - lz * ry,
-        lw * ry - lx * rz + ly * rw + lz * rx,
-        lw * rz + lx * ry - ly * rx + lz * rw,
-        lw * rw - lx * rx - ly * ry - lz * rz,
-    ]
-}
-
-/// The cape geometry's bones posed from the body's bones of the same name.
+/// Reuses completed body poses; the cape mesh already carries its face-orienting bind rotation.
 fn cape_pose(
     cape: &CapeRig,
     body_names: &[Box<str>],
@@ -104,10 +91,6 @@ fn cape_pose(
                 .position(|candidate| candidate.eq_ignore_ascii_case(name))
                 .and_then(|index| body.get(index).copied());
             match pose {
-                Some(mut pose) if name.eq_ignore_ascii_case("cape") => {
-                    pose.rotation = multiply(REST_TURN, pose.rotation);
-                    pose
-                }
                 Some(pose) => pose,
                 None => RenderBoneTransform {
                     rotation: [0.0, 0.0, 0.0, 1.0],
@@ -198,7 +181,7 @@ pub fn apply_capes<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::{cape_layer, multiply};
+    use super::cape_layer;
 
     #[test]
     fn cape_rasters_resample_onto_one_skin_layer() {
@@ -214,17 +197,58 @@ mod tests {
         assert_eq!(&layer[next..next + 4], &[0, 0, 0, 0]);
         assert!(cape_layer(64, 32, &cape[1..]).is_none());
     }
-
-    #[test]
-    fn quaternion_product_composes_the_half_turn_with_a_tilt() {
-        let turn = [0.0, 1.0, 0.0, 0.0];
-        assert_eq!(multiply(turn, [0.0, 0.0, 0.0, 1.0]), turn);
-        let twice = multiply(turn, turn);
-        assert_eq!(twice, [0.0, 0.0, 0.0, -1.0]);
-    }
     #[test]
     fn review_render_cape_rejects_overflowing_dimensions() {
         assert!(cape_layer(1 << 31, 1 << 31, &[]).is_none());
         assert!(cape_layer(u32::MAX, u32::MAX, &[]).is_none());
+    }
+
+    #[test]
+    fn cape_outer_face_keeps_the_front_raster_under_parent_tilt() {
+        use super::{CapeRig, cape_pose};
+        use bevy::math::{Quat, Vec3};
+        use render_model::{EntityRigId, RenderBoneTransform};
+        let source = serde_json::json!({
+            "format_version":"1.12.0",
+            "minecraft:geometry":[{
+                "description":{"identifier":"geometry.fixture","texture_width":64,"texture_height":32},
+                "bones":[{"name":"cape","pivot":[0,24,3],"bind_pose_rotation":[0,180,0],
+                    "cubes":[{"origin":[-5,8,3],"size":[10,16,1],"uv":[0,0]}]}]
+            }]
+        });
+        let model = assets::parse_skin_geometry(
+            r#"{"geometry":{"default":"geometry.fixture"}}"#,
+            &source.to_string(),
+        )
+        .unwrap()
+        .unwrap();
+        let geometry = render_model::skin_geometry(&model, EntityRigId(1)).unwrap();
+        let cape = CapeRig {
+            id: geometry.id,
+            geometry,
+            bone_names: vec!["cape".into()],
+        };
+        for tilt in [0.0, 0.45] {
+            let parent = Quat::from_rotation_x(tilt);
+            let body = [RenderBoneTransform {
+                rotation: parent.to_array(),
+                translation_scale: [0.0, 0.0, 0.0, 1.0],
+                axis_scale: render_model::UNIT_AXIS_SCALE,
+            }];
+            let poses = cape_pose(&cape, &["cape".into()], &body);
+            let rotation = Quat::from_array(poses[0].rotation);
+            let outer = parent * Vec3::Z;
+            let outward = cape
+                .geometry
+                .vertices
+                .iter()
+                .filter(|vertex| (rotation * Vec3::from_array(vertex.normal)).dot(outer) > 0.99)
+                .collect::<Vec<_>>();
+            assert_eq!(outward.len(), 6);
+            assert!(
+                outward.iter().all(|vertex| vertex.uv[0] <= 11.0 / 64.0),
+                "outward face must sample the front strip, not the inside strip"
+            );
+        }
     }
 }
