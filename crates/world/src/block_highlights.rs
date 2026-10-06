@@ -127,7 +127,6 @@ impl BlockHighlightScan {
                 && [key.x - cell[0], key.y - cell[1], key.z - cell[2]]
                     .iter()
                     .all(|v| v.abs() <= radius)
-                && store.is_sub_chunk_loaded(*key)
                 && cached
                     .source
                     .upgrade()
@@ -140,7 +139,7 @@ impl BlockHighlightScan {
         for _ in 0..PROBES_PER_UPDATE.min(self.keys.len()) {
             let key = self.keys[self.cursor];
             self.cursor = (self.cursor + 1) % self.keys.len();
-            if self.cached.contains_key(&key) || !store.is_sub_chunk_loaded(key) {
+            if self.cached.contains_key(&key) {
                 continue;
             }
             let Some(source) = store.sub_chunk(key) else {
@@ -275,6 +274,23 @@ mod tests {
         assert_eq!(scan.scans, 0);
         assert!(scan.output.is_empty());
         assert_eq!(scan.cached.len(), 1);
+    }
+
+    #[test]
+    fn received_sparse_terrain_is_discovered_before_collision_completeness() {
+        let mut store = ChunkStore::new();
+        let key = SubChunkKey::new(0, -1, -1, -1);
+        store
+            .apply_sub_chunk(key, &[8, 1, 1, 4], &RawBlockIds { air: 0 })
+            .unwrap();
+        store
+            .update_sub_chunk_blocks(key, &[BlockUpdate::new(15, 15, 15, 0, 7)], 0)
+            .unwrap();
+        assert!(!store.is_sub_chunk_loaded(key));
+        assert!(store.sub_chunk(key).is_some());
+        let mut scan = BlockHighlightScan::default();
+        complete(&mut scan, &store);
+        assert_eq!(scan.output, vec![[-1, -1, -1]]);
     }
     #[test]
     fn mutation_negative_coordinates_and_unload() {

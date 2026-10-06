@@ -44,6 +44,8 @@ interface input {
 interface environment {
     /// Fixes visual time to 0–23999 ticks; none restores the tracked server clock.
     set-time-override: func(ticks: option<u32>) -> result<_, string>;
+    /// Retained local lighting override; requires the separate fullbright grant.
+    set-fullbright: func(enabled: bool) -> result<_, string>;
 }
 
 /// Explicit local gameplay capabilities; no raw packet access.

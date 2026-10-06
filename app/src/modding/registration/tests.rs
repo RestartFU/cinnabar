@@ -600,3 +600,11 @@ fn block_highlights_grant_is_opt_in_and_survives_registration_decode() {
     let selected: ModGrants = serde_json::from_str(r#"{"block_highlights":true}"#).unwrap();
     assert!(selected.block_highlights);
 }
+
+#[test]
+fn fullbright_grant_is_opt_in_and_survives_registration_decode() {
+    let old: ModGrants = serde_json::from_str(r#"{"environment":true}"#).unwrap();
+    assert!(!old.fullbright);
+    let selected: ModGrants = serde_json::from_str(r#"{"fullbright":true}"#).unwrap();
+    assert!(selected.fullbright);
+}

@@ -385,3 +385,14 @@ through terrain without changing world or packet state. Results share the
 `mod_api::MAX_BLOCK_HIGHLIGHTS` nearest-block budget; the earliest active mod wins.
 `none`, unload, reload, or a trap clears the overlay. Output commits only after a
 successful callback; repeated unchanged input rebuilds no geometry.
+## Fullbright
+
+The separate `fullbright` grant (`CINNABAR_MOD_FULLBRIGHT=1`) permits
+`environment.set-fullbright`. Enabling it replaces the shared world light table
+with full illumination without changing time, stored lighting or server state.
+Disabling it restores the current environment. The flag is retained after
+successful callbacks and clears on traps, unload and reload. Unchanged input
+uploads no new table; inactive world sessions suppress the override.
+
+Block highlights inspect received primary block layers even while collision
+readiness is incomplete. Missing subchunks and unloaded data remain excluded.

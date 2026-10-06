@@ -47,7 +47,10 @@ fn registry() -> Option<&'static [assets::RegistryRecord]> {
                     assets::pinned_block_registry_bytes(),
                     assets::active_content_registry_protocol(),
                 )
-                .unwrap_or_default();
+                .unwrap_or_else(|error| {
+                    bevy::log::warn!(%error, "block highlight identity registry could not be read");
+                    Box::default()
+                });
                 let _ = RECORDS.set(records);
             })
             .is_err()
@@ -122,6 +125,12 @@ fn publish(
                 discovery.ids.push(id);
             }
         }
+        bevy::log::debug!(
+            identifiers = ?spec.identifiers,
+            id_count = discovery.ids.len(),
+            ?mode,
+            "block highlight identities resolved"
+        );
         discovery.scan.clear();
     }
     let Discovery { scan, ids, .. } = &mut *discovery;
@@ -134,4 +143,74 @@ fn publish(
         render::MAX_BLOCK_HIGHLIGHTS,
     );
     scene.set_block_highlights(if visible { positions } else { &[] }, spec.color);
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn signed_varint(value: u32, out: &mut Vec<u8>) {
+        let signed = value as i32;
+        let mut zigzag = ((signed << 1) ^ (signed >> 31)) as u32;
+        while zigzag >= 128 {
+            out.push((zigzag as u8) | 128);
+            zigzag >>= 7;
+        }
+        out.push(zigzag as u8);
+    }
+    #[test]
+    fn pinned_finder_ids_discover_received_packed_blocks_in_both_modes() {
+        let records = assets::read_registry_for_protocol(
+            assets::pinned_block_registry_bytes(),
+            assets::active_content_registry_protocol(),
+        )
+        .unwrap();
+        let targets: Vec<_> = records
+            .iter()
+            .filter(|record| {
+                ["minecraft:ancient_debris", "minecraft:netherite_block"]
+                    .contains(&record.name.as_ref())
+            })
+            .collect();
+        assert_eq!(targets.len(), 2);
+        for mode in [
+            assets::NetworkIdMode::Sequential,
+            assets::NetworkIdMode::Hashed,
+        ] {
+            for record in &targets {
+                let id = match mode {
+                    assets::NetworkIdMode::Sequential => record.sequential_id,
+                    assets::NetworkIdMode::Hashed => record.network_hash,
+                };
+                let mut bytes = vec![8, 1, 3];
+                let index = (7usize << 8) | (12usize << 4) | 4;
+                let mut words = [0u32; 128];
+                words[index / 32] |= 1 << (index % 32);
+                for word in words {
+                    bytes.extend(word.to_le_bytes());
+                }
+                signed_varint(2, &mut bytes);
+                signed_varint(0, &mut bytes);
+                signed_varint(id, &mut bytes);
+                let mut store = world::ChunkStore::new();
+                let key = world::SubChunkKey::new(1, -1, 0, -1);
+                store
+                    .apply_sub_chunk(key, &bytes, &world::RawBlockIds { air: 0 })
+                    .unwrap();
+                assert!(!store.is_sub_chunk_loaded(key));
+                assert_eq!(
+                    store.sub_chunk(key).unwrap().runtime_id(0, 7, 4, 12),
+                    Some(id)
+                );
+                let mut scan = world::BlockHighlightScan::default();
+                for _ in 0..30 {
+                    scan.update(&store, 1, [-9.0, 4.0, -4.0], 32.0, &[id], 1024);
+                }
+                assert_eq!(
+                    scan.update(&store, 1, [-9.0, 4.0, -4.0], 32.0, &[id], 1024),
+                    &[[-9, 4, -4]],
+                    "{} {mode:?}",
+                    record.name
+                );
+            }
+        }
+    }
 }
